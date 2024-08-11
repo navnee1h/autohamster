@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Plan Processor</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f8f9fa;
+            margin: 0;
+            padding: 0;
+        }
+
+        h1 {
+            text-align: center;
+            margin-top: 50px;
+            font-size: 36px;
+            color: #333;
+        }
+
+        .container {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 50px;
+            padding: 20px;
+        }
+
+        .half {
+            flex: 1;
+            padding: 20px;
+            background-color: #fff;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            transition: transform 0.3s ease-in-out;
+        }
+
+        .half:hover {
+            transform: translateY(-5px);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+        }
+
+        th, td {
+            border: 1px solid #ccc;
+            padding: 8px;
+            text-align: left;
+        }
+
+        th {
+            background-color: #f2f2f2;
+        }
+
+        input {
+            width: 100%;
+            box-sizing: border-box;
+            padding: 6px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            transition: border-color 0.3s ease-in-out;
+        }
+
+        input:focus {
+            outline: none;
+            border-color: #007bff;
+        }
+
+        ul {
+            list-style-type: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        li {
+            padding: 10px;
+            border: 1px solid #ccc;
+            margin-bottom: 10px;
+            background-color: #fff;
+            border-radius: 4px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            transition: transform 0.3s ease-in-out;
+        }
+
+        li:hover {
+            transform: translateY(-5px);
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        @keyframes slideInFromLeft {
+            from {
+                transform: translateX(-100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        @keyframes slideInFromRight {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        .container {
+            animation: fadeIn 0.5s ease-in-out;
+        }
+
+        .half:nth-child(odd) {
+            animation: slideInFromLeft 0.5s ease-in-out;
+        }
+
+        .half:nth-child(even) {
+            animation: slideInFromRight 0.5s ease-in-out;
+        }
+    </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.0/socket.io.js"></script>
+</head>
+<body>
+    <h1>Hamster Hack</h1>
+    <div class="container">
+        <div class="half">
+            <table id="csvTable">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Category</th>
+                        <th>Spend</th>
+                        <th>Return</th>
+                        <th>Level</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <!-- Rows will be populated by JavaScript -->
+                </tbody>
+            </table>
+        </div>
+        <div class="half">
+            <h3>Better choices</h3>
+            <ul id="plans-list">
+                <!-- Processed plans will be populated by JavaScript -->
+            </ul>
+        </div>
+    </div>
+
+    <script>
+        const tableBody = document.querySelector('#csvTable tbody');
+        const plansList = document.getElementById('plans-list');
+
+        var socket = io();
+
+        socket.on('connect', function() {
+            console.log('Connected to server');
+            fetchAndUpdateData();
+        });
+
+        socket.on('disconnect', function() {
+            console.log('Disconnected from server');
+        });
+
+        socket.on('csv_updated', function() {
+            console.log('CSV updated, fetching new data...');
+            fetchAndUpdateData();
+        });
+
+        socket.on('processed_data_updated', function(data) {
+            console.log('Processed data updated');
+            updateProcessedPlans(data);
+        });
+
+        document.addEventListener('keydown', function(event) {
+            if (event.key === 'Enter') {
+                saveCSV();
+            }
+        });
+
+        function fetchAndUpdateData() {
+            fetch('/get_data')
+                .then(response => response.json())
+                .then(data => {
+                    updateTable(data.raw_data);
+                    updateProcessedPlans(data.processed_plans);
+                });
+        }
+
+        function updateTable(data) {
+            tableBody.innerHTML = '';
+            data.forEach(row => {
+                const tr = document.createElement('tr');
+                row.forEach((cell, index) => {
+                    const td = document.createElement('td');
+                    if (index === 0 || index === 1) {
+                        td.textContent = cell;
+                    } else {
+                        const input = document.createElement('input');
+                        input.type = 'text';
+                        input.value = cell;
+                        td.appendChild(input);
+                    }
+                    tr.appendChild(td);
+                });
+                tableBody.appendChild(tr);
+            });
+        }
+
+        function updateProcessedPlans(plans) {
+            plansList.innerHTML = '';
+            plans.forEach(function(plan) {
+                var listItem = document.createElement('li');
+                listItem.textContent = `Plan ${plan.plan_name} (Category ${plan.category_text}) with updationMoney: ${plan.updationMoney}, returnMoney: ${plan.returnMoney}, level: ${plan.level} has a profit of: ${plan.profit}`;
+                plansList.appendChild(listItem);
+            });
+        }
+
+        function saveCSV() {
+            const rows = Array.from(tableBody.querySelectorAll('tr'));
+            const data = rows.map(row => {
+                const cells = Array.from(row.querySelectorAll('td'));
+                return cells.map((cell, index) => {
+                    if (index === 0 || index === 1) {
+                        return cell.textContent;
+                    }
+                    return cell.querySelector('input').value;
+                });
+            });
+
+            fetch('/save_data', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ data })
+            })
+            .then(response => response.json())
+            .then(result => {
+                alert(result.message);
+                if (result.success) {
+                    fetchAndUpdateData(); // Fetch and update both raw data and processed plans after saving
+                }
+            });
+        }
+    </script>
+</body>
+</html>
